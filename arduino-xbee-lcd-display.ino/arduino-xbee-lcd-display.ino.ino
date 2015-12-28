@@ -1,9 +1,9 @@
+#include <LiquidCrystal_I2C.h>
 #include <ArduinoJson.h>
 #include <SoftwareSerial.h>
 
 
 const String deviceID = "lcd1";
-
 
 /**
  * Utilisé pour les IO XBee
@@ -24,10 +24,19 @@ int lastButtonState = LOW;   // the previous reading from the input pin
 // will quickly become a bigger number than can be stored in an int.
 long lastDebounceTime = 0;  // the last time the output pin was toggled
 long debounceDelay = 50;    // the debounce time; increase if the output flickers
+boolean backlightOn = false;
+
+/**
+ * utilisé pour le LCD
+ */
+LiquidCrystal_I2C lcd(0x27,16,2); // TODO trouver la bonne adresse du LCD
+long backlightDelay = 60000;
+long lastBacklight = 0;
 
 void setup()
 {
 
+  lcd.init();
   XBee.begin(9600);
   Serial.begin(9600);
   pinMode(13, OUTPUT);
@@ -38,6 +47,7 @@ void loop()
 { 
   handleButton();
   handleXbee();
+  handleLcdBacklight();
   digitalWrite(13, LOW); 
 }
 
@@ -68,6 +78,9 @@ void handleButton(){
          * activer le backlight durant 1 min
          */
         Serial.println("bouton activation backlight !!");
+        lastBacklight = millis();
+        lcd.backlight();
+        backlightOn = true;
       }
     }
   }
@@ -80,11 +93,11 @@ void handleXbee(){
     StaticJsonBuffer<200> jsonBuffer;
     digitalWrite(13, HIGH);
     incoming = XBee.readString();
-    Serial.println(incoming);
+    
     JsonObject& decodedJson = jsonBuffer.parseObject(incoming); //DUH !!
     if (!decodedJson.success())
     {
-      Serial.println("erreur de decodage, n'accepte que du JSON");
+      Serial.println("Send only JSON");
     }else{
       if( decodedJson[deviceID].asString() == NULL ){
         Serial.println("--ignored--");
@@ -98,3 +111,12 @@ void handleXbee(){
     }
   }
 }
+
+void handleLcdBacklight(){
+  if(backlightOn && (millis() - lastBacklight) > backlightDelay){
+    Serial.println("suppression backlight !!");
+    lcd.noBacklight();
+    backlightOn = false;
+  }
+}
+
