@@ -1,7 +1,8 @@
+#include <Wire.h>
+#include <LCD.h>
 #include <LiquidCrystal_I2C.h>
 #include <ArduinoJson.h>
 #include <SoftwareSerial.h>
-
 
 const String deviceID = "lcd1";
 
@@ -10,7 +11,7 @@ const String deviceID = "lcd1";
  */
 SoftwareSerial XBee(2, 3); // RX, TX
 String incoming;
-
+String decoded;
 
 /**
  * Utilisé pour le bouton
@@ -26,25 +27,49 @@ long lastDebounceTime = 0;  // the last time the output pin was toggled
 long debounceDelay = 50;    // the debounce time; increase if the output flickers
 boolean backlightOn = false;
 
+
 /**
  * utilisé pour le LCD
  */
-LiquidCrystal_I2C lcd(0x27,16,2); // TODO trouver la bonne adresse du LCD
+//LiquidCrystal_I2C lcd(0x27,16,2); // TODO trouver la bonne adresse du LCD
+
+#define I2C_ADDR    0x27 // <<----- Add your address here.  Find it from I2C Scanner
+#define BACKLIGHT_PIN     3
+#define En_pin  2
+#define Rw_pin  1
+#define Rs_pin  0
+#define D4_pin  4
+#define D5_pin  5
+#define D6_pin  6
+#define D7_pin  7
+
+int n = 1;
+
+LiquidCrystal_I2C  lcd(I2C_ADDR,En_pin,Rw_pin,Rs_pin,D4_pin,D5_pin,D6_pin,D7_pin);
+
+
 long backlightDelay = 60000;
 long lastBacklight = 0;
 
 void setup()
 {
-
-  lcd.init();
   XBee.begin(9600);
   Serial.begin(9600);
   pinMode(13, OUTPUT);
   pinMode(buttonPin, INPUT);
+  lcd.begin (16,2);
+
+ 
+// Switch on the backlight
+lcd.setBacklightPin(BACKLIGHT_PIN,POSITIVE);
+
+lcd.home (); // go home
+
 }
 
 void loop()
 { 
+  
   handleButton();
   handleXbee();
   handleLcdBacklight();
@@ -77,9 +102,11 @@ void handleButton(){
         /**
          * activer le backlight durant 1 min
          */
+              
         Serial.println("bouton activation backlight !!");
         lastBacklight = millis();
-        lcd.backlight();
+        lcd.setBacklight(HIGH);
+        
         backlightOn = true;
       }
     }
@@ -99,6 +126,7 @@ void handleXbee(){
     {
       Serial.println("Send only JSON");
     }else{
+      
       if( decodedJson[deviceID].asString() == NULL ){
         Serial.println("--ignored--");
       }else{
@@ -106,7 +134,29 @@ void handleXbee(){
          * envoi du texte vers le LCD 
          * activer le backlight durant 1 min.
          */
-        Serial.println( decodedJson[deviceID].asString() );
+        decoded = decodedJson[deviceID].asString();
+        if(decoded.length() > 32){
+          decoded = decoded.substring(0,32);
+        }
+        lcd.clear();
+        lcd.home();
+        
+        if( decoded.length() > 16){
+          lcd.print( decoded.substring(0,16) );
+          lcd.setCursor ( 0, 1 );
+          lcd.print( decoded.substring(16) );  
+        }else{
+          lcd.print( decoded );
+        }
+        
+        lastBacklight = millis();
+        lcd.setBacklight(HIGH);
+        
+        backlightOn = true;
+
+        
+        
+        Serial.println( decoded  + "5454"+ decoded.length() );
       }
     }
   }
@@ -115,7 +165,8 @@ void handleXbee(){
 void handleLcdBacklight(){
   if(backlightOn && (millis() - lastBacklight) > backlightDelay){
     Serial.println("suppression backlight !!");
-    lcd.noBacklight();
+   // lcd.noBacklight();
+   lcd.setBacklight(LOW);
     backlightOn = false;
   }
 }
